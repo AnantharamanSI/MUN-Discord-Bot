@@ -1,0 +1,4 @@
+#Custom repl file to make running this easier
+#Can be removed for GitHub
+run="python src/bot.py"
+language="python3"
