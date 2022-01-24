@@ -45,8 +45,12 @@ async def well(ctx):
       for channel in server.channels:
         channels_present.add(channel.name)
       channels_to_make = channels_req.difference(channels_present)
+      category = discord.utils.get(server.categories, name='Bot Channels')
+      if category is None:
+        await server.create_category('Bot Channels')
+        category = discord.utils.get(server.categories, name='Bot Channels')
       for channel in channels_to_make:
-        ch = await server.create_text_channel(channel)
+        ch = await server.create_text_channel(channel, category = category)
         overwrite = ch.overwrites_for(ctx.guild.default_role)
         overwrite.send_messages = False
         await ch.set_permissions(ctx.guild.default_role, overwrite=overwrite)
@@ -191,25 +195,6 @@ async def help(ctx):
                        value="Adds your name to the general speakers list.",
                        inline=True)
 
-    # embedVar.add_field(name=p+"viewRegister", value="Displays all registered delegations and their statuses.", inline=True)
-    # embedVar.add_field(name=p+"GS", value="Prints out the current general speakers list.", inline=True)
-    # embedVar.add_field(name=p+"popGS", value="Remove first delegate from general speakers list. Used just after a speaker has finished.", inline=True)
-    # embedVar.add_field(name=p+"speak [delegate] [time (s)]", value="Yields the floor to the delegate. Starts a timer.", inline=True)
-    # embedVar.add_field(name=p+"propose mod [total time(min)] [speaker time(s)] [country] [topic]", value="Propose a moderated caucus.", inline=True)
-    # embedVar.add_field(name=p+"mod [total time(min)]", value="Starts a timer for Mod. Send 'cancel'/'pause' to cancel/pause it.", inline=True)
-    # embedVar.add_field(name=p+"unmod [total time(min)]", value="Starts a timer for Unmod. Send 'cancel'/'pause' to cancel/pause it.", inline=True)
-    # embedVar.add_field(name=p+"voting [topic]", value="Starts a non-caucus vote. Useful for final vote or amendments.", inline=True)
-    # embedVar.add_field(name=p+"endSession", value="Disables session commands and disconnects bot from voice channel. Clears GS list.", inline=True)
-    # embedVar.add_field(name=p+"chair [@member]", value="Gives chair role to another member.", inline=True)
-
-    # embedVar.add_field(name=p+"tap", value="Alerts that you support the current debate.", inline=True)
-    # embedVar.add_field(name=p+"preamble", value="Displays list of phrases, useful for preambulatory clauses.", inline=True)
-    # embedVar.add_field(name=p+"operative", value="Displays list of phrases, useful for operative clauses.", inline=True)
-    # embedVar.add_field(name=p+"about", value="Provides information about MUNchkin.", inline=True)
-    # embedVar.add_field(name=p+"rules", value="Provides simplified ruleset for Harvard style MUN.", inline=True)
-    # embedVar.add_field(name=p+"notebook", value="Enable notepassing for yourself.", inline=True)
-    # embedVar.add_field(name=p+"note [@user] message", value="Send a note to a user.", inline=True)
-
     embedVar2 = discord.Embed(title="Support Omkar",
                               description="Useful links for using Omkar.",
                               color=discord.Color.from_rgb(78, 134, 219))
@@ -224,27 +209,19 @@ async def help(ctx):
     await ctx.channel.send(embed=embedVar)
     await ctx.channel.send(embed=embedVar2)
 
-@client.event
-async def on_member_join(member):
-  role = discord.utils.get(member.server.roles, name="Delegate")
-  #iterating until it gets the variable with the set parametre which is Delegate role in pur case.
-  await client.add_role(member, role)
-  
-"""@bot.command(name='add-role')
-async def add_role(ctx, *, text, *, t):	
-	message = await ctx.send(f"**Adding**`{text}`{t}`")
-	if t=="chair":
-    client.add_role(text, id=934723605147844628)
-    print("a")
 
-client.on('guildMemberAdd', (guildMember) => {
-   guildMember.addRole(guildMember.guild.roles.find(role => role.name === "Delegate"));
-});
-"""
-@client.event 
-async def on_member_join(member):
-  role = get(member.guild.roles, name="Delegate")
-  await member.add_roles(member, role)
-  
-#client.run(TOKEN)
+@bot.command(name="add-chair")
+@commands.has_role("admin")
+async def add_chair(ctx):
+    member = ctx.message.author
+    message = await ctx.send(f"`{member}`has been made a **Chair**")
+    role = discord.utils.get(ctx.message.guild.roles, name="Chair")
+    await member.add_roles(role)
+
+# @bot.event 
+# async def on_member_join(member):
+#   role = get(member.guild.roles, name="Delegate")
+#   await member.add_roles(role)
+
+
 bot.run(TOKEN)
