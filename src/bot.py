@@ -19,7 +19,7 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 client = discord.Client()
 
-bot = commands.Bot(command_prefix='mun ')
+bot = commands.Bot(command_prefix='mun ', intents=intents)
 bot.remove_command('help')
 
 # DiscordComponents(bot)
@@ -95,7 +95,7 @@ async def well(ctx):
       await server.create_category('Bot Channels')
       category = discord.utils.get(server.categories, name='Bot Channels')
     for channel in channels_to_make:
-      bot_role = discord.utils.get(user.server.roles, name="Omkar")
+      bot_role = discord.utils.get(server.roles, name="Omkar")
       overwrite = {
         server.default_role: discord.PermissionOverwrite(send_messages=False),
         bot_role: discord.PermissionOverwrite(send_messages=True)}
@@ -138,12 +138,11 @@ async def poll_stop(ctx):
 
 		y, n = chair.poll_result(guild_id, {react.emoji: react.count for react in msg.reactions})
 
-
 		for r in msg.reactions:
 			async for user in r.users():
-				dn = ctx.message.guild.get_member(user.id)
-				# print(dn.display_name)
-				print(dn.nick, r.emoji)
+				dn = ctx.guild.get_member(user.id)
+				# print(user.id, dn, type(dn))
+				print(dn.display_name, r.emoji)
 		
 		for r in msg.reactions: await msg.clear_reaction(r)
 		
