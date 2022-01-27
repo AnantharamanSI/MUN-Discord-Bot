@@ -4,9 +4,7 @@ import discord
 from dotenv import load_dotenv
 from discord.utils import get
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandNotFound
-# from discord.ui import Button, View
-# from discord_components import DiscordComponents, Button, ButtonStyle 
+from discord.ext.commands import CommandNotFound, MissingRequiredArgument, MissingRole, MissingPermissions
 
 import chair
 from replit import db
@@ -33,13 +31,21 @@ async def add_chair(ctx):
     await member.add_roles(role)
 """
 @bot.event
+async def on_connect():
+	print('Bot Connected: '+str(client))
+
+@bot.event
 async def on_ready():
-	#Bot Watching Status
+  #Bot Watching Status
   await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="the United Nations"))
   print(f'{bot.user} has connected to Discord!')
 
+  db["del_msg_id"] = ""
+  db["voting_msg_id"] = ""
+
+
   #Create channels
-  req = { "Bot Channels":["announcements","poll-log"], "Bloc Channels":["bloc-announcements"] }
+  req = { "Bot Channels":["announcements","poll-log","roles"], "Bloc Channels":["bloc-announcements"] }
   categories_req = set(list(req.keys()))
   for server in bot.guilds:
     categories_dict = {c.name:c for c in server.categories}
@@ -56,7 +62,9 @@ async def on_ready():
       channels_to_make = channels_req.difference(channels_present)
       for channel_name in channels_to_make:
         await create_channel(server, category, channel_name)
-
+        
+  #Reaction roles
+  
 async def create_channel(server, category, name):
   bot_role = discord.utils.get(server.roles, name="Omkar")
   overwrite = {
@@ -84,14 +92,20 @@ async def startup(ctx):
 		await guild.create_role(name="Delegate", colour=discord.Colour(0xFEE75C))
 
 @bot.event
-async def on_connect():
-	print('Bot Connected: '+str(client))
-
-@bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CommandNotFound):
-	    await ctx.send("This is not a command")
+	    await ctx.send("This is not a command.\nSee `mun help` for available commands")
 	    return
+    if isinstance(error, MissingRequiredArgument):
+	    await ctx.send("Missing arguments in command.\nSee `mun help` for required arguments")
+	    return
+    if isinstance(error, MissingRole):
+	    await ctx.send("Only Chairs can use commands.")
+	    return
+    if isinstance(error, MissingPermissions):
+	    await ctx.send("Some permissions are missing.")
+	    return
+    
     raise error
 
 @bot.event
@@ -112,62 +126,100 @@ async def on_message(ctx):
     #role = discord.utils.get(member.guild.roles, name="Delegate")
     #await member.add_roles(role)
 
-@bot.command(name='test_block')
-async def on_message(ctx,*,message):
-  member = message.author
-  block_name = message.content
-  print(member)
-  print(block_name)
-  # chair = discord.utils.get(server.channels, name='Chair')
-  # category = discord.utils.get(server.categories, name='block channels')
-	# overwrite = {
-  #   server.default_role: discord.PermissionOverwrite(read_messages=False),
- 	# 	member: discord.PermissionOverwrite(send_messages=True)
-  #   chair: discord.PermissionOverwrite(read_messages=True)}
-	# ch = await server.create_text_channel(block_name, overwrites = overwrite, category = category)
-# 
-@bot.event
-async def on_button_click(interaction):
-	await interaction.respond(content=f"you clicked button {interaction.component.custom_id}")
+@bot.command(name='test-bloc')
+async def test_bloc(ctx, *, text):
+  member = ctx.message.author
+  bloc_name = text
+  chair = discord.utils.get(ctx.message.guild.roles, name='Chair')
+  category = discord.utils.get(ctx.message.guild.categories, name='Bloc Channels')
+  overwrite = {
+    ctx.message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+ 	  member: discord.PermissionOverwrite(send_messages=True),
+    chair: discord.PermissionOverwrite(read_messages=True)}
+  ch = await ctx.message.guild.create_text_channel(bloc_name, overwrites = overwrite, category = category)
+  channel = discord.utils.get(ctx.message.guild.channels,name = 'bloc-announcements')
+  await channel.send(str(member) + "has created the " + str(bloc_name) + ". If you want to apply to join click on ")
 
 
 @bot.event
 async def on_reaction_add(reaction, user):
-    if reaction.message.id != db["voting message id"]:
-	    return
+    cc = db["voting_msg_id"]
+    dc = db["del_msg_id"]
+    if reaction.message.id == cc:
+        msg = reaction.message
+        if user.display_name in msg.content:
+            return
+        if reaction.emoji not in ('🗳️','☑️'):
+            return
+            
+        s = msg.content
+        s = f"{s[:-3]}\n{user.display_name} - {reaction.emoji} ```"
+        await msg.edit(content=f"{s}")
 
-    msg = reaction.message
-    if user.display_name in msg.content:
-	    return
-    s = msg.content
-    s = f"{s[:-3]}{user.display_name} - {reaction.emoji} ```"
-    await msg.edit(content=f"{s}")
+    elif reaction.message.id == dc:
+        role = discord.utils.get(user.guild.roles, name="Delegate")
+        await user.add_roles(role)
+        
+    return
 
 @bot.event
 async def on_reaction_remove(reaction, user):
-    if reaction.message.id != db["voting message id"]:
+    if reaction.message.id != db["voting_msg_id"]:
 	    return
+
     msg = reaction.message
     if user.display_name not in msg.content:
 	    return
+
     s = msg.content
     ind = s.index(user.display_name)
+
     s = s[:ind-1]+s[ind + len(user.display_name)+4:]
+
     await msg.edit(content=f"{s}")
 
+@commands.has_role("Chair")
 @bot.command(name='say')
 async def repeat(ctx, *, arg):
     await ctx.send(arg)
-	
+
+@commands.has_role("Chair")
+@bot.command(name='set-del')
+async def set_del(ctx):
+    c = discord.utils.get(ctx.message.guild.channels, name='roles')
+    msg = await c.send("Click the reaction to set yourself as delegate.")
+    await msg.add_reaction('✅')
+    await msg.pin()
+
+    db["del_msg_id"] = msg.id
+
+@commands.has_role("Chair")	
 @bot.command(name='voting-stance')
 async def voting_stance(ctx):	
-	msg = await ctx.send("Voting Stance\n``` ```")
+	c = discord.utils.get(ctx.message.guild.channels, name='announcements')
+	msg = await c.send("Voting Stance\n```Delegates```")
+
 	for emoji in ('🗳️','☑️'):
 		await msg.add_reaction(emoji)
-	await ctx.send("`Voting` `Present`")
-	db["voting message id"]	= msg.id
-	print(db["voting message id"])
 
+	await c.send("`Voting` `Present`")
+
+	db["voting_msg_id"]	= msg.id
+	print(db["voting_msg_id"])
+
+@commands.has_role("Chair")
+@bot.command(name='voting-end')
+async def voting_end(ctx):	
+
+	c = discord.utils.get(ctx.message.guild.channels, name='announcements')
+	id = db["voting_msg_id"]
+	msg = await c.fetch_message(int(id))
+	
+	for r in msg.reactions: await msg.clear_reaction(r)
+
+# db["voting_msg_id"] = 
+
+@commands.has_role("Chair")
 @bot.command(name='poll')
 async def poll_start(ctx, *, text):	
 
@@ -181,22 +233,14 @@ async def poll_start(ctx, *, text):
 	guild_id = ctx.message.guild.id
 	chair.poll_create(message.id, text, guild_id)
 
-	# message = await ctx.fetch_message(message.id)
-	# await message.edit(content=f"**Poll Started**\n`{text}`\nPoll Id: {str(pid)}")
-
-	# await message.edit(content=f"**Poll**\n`{text}`")
-
-
+@commands.has_role("Chair")
 @bot.command(name='poll-end')
 async def poll_stop(ctx):	
 	try:
-
 		c = discord.utils.get(ctx.message.guild.channels, name='announcements')
 
 		guild_id = ctx.message.guild.id
-
 		id = db[str(guild_id)]
-		
 		msg = await c.fetch_message(int(id))
 
 		y, n = chair.poll_result(guild_id, {react.emoji: react.count for react in msg.reactions})
@@ -206,7 +250,7 @@ async def poll_stop(ctx):
 			if r.emoji in ('👍', '👎'):
 				async for user in r.users():
 					dn = ctx.guild.get_member(user.id)
-					if dn.name != "Omkar":
+					if dn.name != bot.user.name:
 						voters += str(dn.display_name)+" - "+str(r.emoji)+"\n"
 			
 		# for r in msg.reactions: await msg.clear_reaction(r)
@@ -223,6 +267,7 @@ async def poll_stop(ctx):
 		await ctx.send("Error: Backend has messed up")
 
 
+@commands.has_role("Chair")
 @bot.command(pass_content=True)
 async def help(ctx):
     # if prefixTable.find({"_id":ctx.guild.id}).count() > 0:
@@ -243,9 +288,9 @@ async def help(ctx):
                        value="Current prefix is set to: " + p,
                        inline=False)
 
-    embedVar.add_field(name=p + "prefix [new prefix]",
-                       value="Change the bot's prefix (Chairs only).",
-                       inline=True)
+    # embedVar.add_field(name=p + "prefix [new prefix]",
+    #                    value="Change the bot's prefix (Chairs only).",
+    #                    inline=True)
 
     embedVar.add_field(
         name="Chair Commands",
@@ -288,38 +333,5 @@ async def help(ctx):
 
     await ctx.channel.send(embed=embedVar)
     await ctx.channel.send(embed=embedVar2)
-
-
-
-
-
-"""
-@bot.command(name="add-chair")
-@commands.has_role("admin")
-async def add_chair(ctx, user):
-	#userid = user.strip("<>@!")
-	u = ctx.message.guild.get_member(user)
-	message = await ctx.send(f"`{u}` has been made a **Chair**")
-	role = discord.utils.get(ctx.message.guild.roles, name="Chair")
-	await u.add_roles(role)
-
-@bot.command(name="role")
-@commands.has_permissions(administrator=True) #permissions
-async def role(ctx, user : discord.Member, *, role : discord.Role):
-  if role.position > ctx.author.top_role.position: #if the role is above users top role it sends error
-    return await ctx.send('**:x: | That role is above your top role!**') 
-  if role in user.roles:
-      await user.remove_roles(role) #removes the role if user already has
-      await ctx.send(f"Removed {role} from {user.mention}")
-  else:
-      await user.add_roles(role) #adds role if not already has it
-      await ctx.send(f"Added {role} to {user.mention}") 
-
-
-@bot.event 
-async def on_member_join(member):
-  role = discord.utils.get(member.guild.roles, name="Delegate")
-  await member.add_roles(role)
-"""
 
 bot.run(TOKEN)

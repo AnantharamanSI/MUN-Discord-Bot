@@ -29,6 +29,37 @@ def poll_result(guild_id, result):
 	n = result['👎']-1
 	polls[guild_id]['y'] = y
 	polls[guild_id]['n'] = n
-	del db[str(guild_id)]
+	# del db[str(guild_id)]
 	
 	return y, n
+
+
+
+"""
+@bot.command(name="add-chair")
+@commands.has_role("admin")
+async def add_chair(ctx, user):
+	#userid = user.strip("<>@!")
+	u = ctx.message.guild.get_member(user)
+	message = await ctx.send(f"`{u}` has been made a **Chair**")
+	role = discord.utils.get(ctx.message.guild.roles, name="Chair")
+	await u.add_roles(role)
+
+@bot.command(name="role")
+@commands.has_permissions(administrator=True) #permissions
+async def role(ctx, user : discord.Member, *, role : discord.Role):
+  if role.position > ctx.author.top_role.position: #if the role is above users top role it sends error
+    return await ctx.send('**:x: | That role is above your top role!**') 
+  if role in user.roles:
+      await user.remove_roles(role) #removes the role if user already has
+      await ctx.send(f"Removed {role} from {user.mention}")
+  else:
+      await user.add_roles(role) #adds role if not already has it
+      await ctx.send(f"Added {role} to {user.mention}") 
+
+
+@bot.event 
+async def on_member_join(member):
+  role = discord.utils.get(member.guild.roles, name="Delegate")
+  await member.add_roles(role)
+"""
