@@ -109,8 +109,8 @@ async def on_command_error(ctx, error):
     raise error
 
 @bot.event
-async def on_member_join(ctx, member):
-  role = discord.utils.get(ctx.message.guild.roles, name="Delegate")
+async def on_member_join(member):
+  role = discord.utils.get(member.guild.roles, name="Delegate")
   await member.add_roles(role)
 
 @bot.command(name='members')
@@ -126,20 +126,44 @@ async def on_message(ctx):
     #role = discord.utils.get(member.guild.roles, name="Delegate")
     #await member.add_roles(role)
 
-@bot.command(name='test-bloc')
+@bot.command(name='create-bloc')
 async def test_bloc(ctx, *, text):
   member = ctx.message.author
   bloc_name = text
-  chair = discord.utils.get(ctx.message.guild.roles, name='Chair')
+  chair_role = discord.utils.get(ctx.message.guild.roles, name='Chair')
   category = discord.utils.get(ctx.message.guild.categories, name='Bloc Channels')
   overwrite = {
     ctx.message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
- 	  member: discord.PermissionOverwrite(send_messages=True),
-    chair: discord.PermissionOverwrite(read_messages=True)}
+ 	  member: discord.PermissionOverwrite(read_messages=True,send_messages=True),
+    chair_role: discord.PermissionOverwrite(read_messages=True)}
   ch = await ctx.message.guild.create_text_channel(bloc_name, overwrites = overwrite, category = category)
   channel = discord.utils.get(ctx.message.guild.channels,name = 'bloc-announcements')
-  await channel.send(str(member) + "has created the " + str(bloc_name) + ". If you want to apply to join click on ")
+  msg = await channel.send(str(member) + " has created the " + str(bloc_name) + ".")
+  pwd = chair.bloc_create(bloc_name)
+  msg2 = await ch.send("The password is " + str(pwd))
+  await msg2.pin()
 
+  
+@bot.command(name="join-bloc")
+async def join_bloc(ctx, bloc_name, pwd):
+  member = ctx.message.author
+  # print(bloc_name, pwd)
+  if bloc_name not in chair.blocs:
+      await ctx.send("This bloc doesn't exist yet.")
+      return
+#   print(chair.blocs[bloc_name])
+  if chair.blocs[bloc_name] == int(pwd):
+    #print("PWD is correct")
+    # overwrite = {
+   	#   member: discord.PermissionOverwrite(read_messages=True, send_messages=True),}
+    overwrite = discord.PermissionOverwrite()
+    overwrite.send_messages = True
+    overwrite.read_messages = True
+    channel = discord.utils.get(ctx.message.guild.channels, name = bloc_name)
+    await channel.set_permissions(member, overwrite=overwrite)
+  else:
+    await ctx.send("The password is incorrect.")
+        
 
 @bot.event
 async def on_reaction_add(reaction, user):
@@ -189,7 +213,7 @@ async def set_del(ctx):
     c = discord.utils.get(ctx.message.guild.channels, name='roles')
     msg = await c.send("Click the reaction to set yourself as delegate.")
     await msg.add_reaction('✅')
-    await msg.pin()
+    # await msg.pin()
 
     db["del_msg_id"] = msg.id
 

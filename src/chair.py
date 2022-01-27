@@ -2,6 +2,7 @@ from replit import db
 from random import randint
 
 polls = {}
+blocs = {}
 
 # def poll_create(msgid, content):
 # 	current_poll = randint(100, 999)
@@ -33,6 +34,14 @@ def poll_result(guild_id, result):
 	
 	return y, n
 
+
+def bloc_create(channel_name):
+    pwd = randint(100, 999)
+    while pwd in blocs.keys():
+        pwd = randint(100, 999)
+    blocs[channel_name] = pwd
+
+    return pwd
 
 
 """
