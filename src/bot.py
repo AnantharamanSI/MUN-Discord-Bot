@@ -9,8 +9,13 @@ from discord.ext.commands import CommandNotFound, MissingRequiredArgument, Missi
 import chair
 from replit import db
 
-intents = discord.Intents.default()
-intents.members = True
+import aiohttp
+import discord
+import datetime
+import warnings
+
+intents = discord.Intents.all()
+# intents.members = True
 
 #load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -19,6 +24,10 @@ client = discord.Client()
 
 bot = commands.Bot(command_prefix='mun ', intents=intents)
 bot.remove_command('help')
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+bot.session = aiohttp.ClientSession()
+
 
 # DiscordComponents(bot)
 """
@@ -42,6 +51,7 @@ async def on_ready():
 
   db["del_msg_id"] = ""
   db["voting_msg_id"] = ""
+  db["hand_msg_id"] = ""
 
 
   #Create channels
@@ -82,7 +92,6 @@ async def create_category(server, name):
     category = discord.utils.get(server.categories, name=name)
   return category
 
-
 @bot.command(name="startup")
 async def startup(ctx):
 	guild = ctx.guild
@@ -113,18 +122,18 @@ async def on_member_join(member):
   role = discord.utils.get(member.guild.roles, name="Delegate")
   await member.add_roles(role)
 
-@bot.command(name='members')
-async def on_message(ctx):
-    i=[]
-    for guild in bot.guilds:
-      for a in guild.members:
-        i+=a
-    print(i)
-    message = await ctx.send(i)
-    #await member.add_roles(role)
+# @bot.command(name='members')
+# async def on_message(ctx):
+#     i=[]
+#     for guild in bot.guilds:
+#       for a in guild.members:
+#         i+=a
+#     print(i)
+#     message = await ctx.send(i)
+    # await member.add_roles(role)
 
-    #role = discord.utils.get(member.guild.roles, name="Delegate")
-    #await member.add_roles(role)
+    # role = discord.utils.get(member.guild.roles, name="Delegate")
+    # await member.add_roles(role)
 
 @bot.command(name='create-bloc')
 async def test_bloc(ctx, *, text):
@@ -143,7 +152,7 @@ async def test_bloc(ctx, *, text):
   msg2 = await ch.send("The password is " + str(pwd))
   await msg2.pin()
 
-  
+
 @bot.command(name="join-bloc")
 async def join_bloc(ctx, bloc_name, pwd):
   member = ctx.message.author
@@ -154,8 +163,6 @@ async def join_bloc(ctx, bloc_name, pwd):
 #   print(chair.blocs[bloc_name])
   if chair.blocs[bloc_name] == int(pwd):
     #print("PWD is correct")
-    # overwrite = {
-   	#   member: discord.PermissionOverwrite(read_messages=True, send_messages=True),}
     overwrite = discord.PermissionOverwrite()
     overwrite.send_messages = True
     overwrite.read_messages = True
@@ -169,9 +176,10 @@ async def join_bloc(ctx, bloc_name, pwd):
 async def on_reaction_add(reaction, user):
     cc = db["voting_msg_id"]
     dc = db["del_msg_id"]
+    hr = db["hand_msg_id"]
     if reaction.message.id == cc:
         msg = reaction.message
-        if user.display_name in msg.content:
+        if user.display_name in msg.content or user.display_name == bot.user.name:
             return
         if reaction.emoji not in ('🗳️','☑️'):
             return
@@ -183,29 +191,84 @@ async def on_reaction_add(reaction, user):
     elif reaction.message.id == dc:
         role = discord.utils.get(user.guild.roles, name="Delegate")
         await user.add_roles(role)
+    
+    elif reaction.message.id == hr:
+        msg = reaction.message
+        if user.display_name in msg.content or user.display_name == bot.user.name:
+            return
+        if reaction.emoji != '🤚':
+            return
+        s = msg.content
+        s = f"{s[:-3]}\n{user.display_name} ```"
+        await msg.edit(content=f"{s}")
         
     return
 
 @bot.event
 async def on_reaction_remove(reaction, user):
-    if reaction.message.id != db["voting_msg_id"]:
-	    return
 
-    msg = reaction.message
-    if user.display_name not in msg.content:
-	    return
+    cc = db["voting_msg_id"]
+    hr = db["hand_msg_id"]
+    if reaction.message.id == cc:
+        msg = reaction.message
+        if user.display_name not in msg.content:
+	        return
 
-    s = msg.content
-    ind = s.index(user.display_name)
+        s = msg.content
+        ind = s.index(user.display_name)
 
-    s = s[:ind-1]+s[ind + len(user.display_name)+4:]
+        s = s[:ind-1]+s[ind + len(user.display_name)+4:]
 
-    await msg.edit(content=f"{s}")
+        await msg.edit(content=f"{s}")
+
+
+    elif reaction.message.id == hr:
+        msg = reaction.message
+        if user.display_name not in msg.content:
+            return
+        s = msg.content
+        ind = s.index(user.display_name)
+
+        s = s[:ind-1]+s[ind + len(user.display_name):]
+        await msg.edit(content=f"{s}")
+
+    return
 
 @commands.has_role("Chair")
 @bot.command(name='say')
 async def repeat(ctx, *, arg):
     await ctx.send(arg)
+
+@commands.has_role("Chair")
+@bot.command(name='raise-hand')
+async def raise_hand(ctx):
+    c = discord.utils.get(ctx.message.guild.channels, name='announcements')
+    msg = await c.send("Click the reaction to raise your hand.\n```Raised Hands:```")
+    await msg.add_reaction('🤚')
+
+    db["hand_msg_id"] = msg.id
+    
+#############################
+
+async def timeout_user(*, user_id: int, guild_id: int, until):
+    headers = {"Authorization": f"Bot {bot.http.token}"}
+    url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{user_id}"
+    timeout = (datetime.datetime.utcnow() + datetime.timedelta(minutes=until)).isoformat()
+    json = {'communication_disabled_until': timeout}
+    async with bot.session.patch(url, json=json, headers=headers) as session:
+        if session.status in range(200, 299):
+           return True
+        return False
+
+@commands.has_role("Chair")
+@bot.command(name='gag')
+async def gag(ctx: commands.Context, member: discord.Member, until: int):
+    handshake = await timeout_user(user_id=member.id, guild_id=ctx.guild.id, until=until)
+    print(handshake)
+    if handshake:
+         return await ctx.send(f"Successfully timed out user for {until} minutes.")
+    await ctx.send("Something went wrong")
+###################################
 
 @commands.has_role("Chair")
 @bot.command(name='set-del')
@@ -221,7 +284,7 @@ async def set_del(ctx):
 @bot.command(name='voting-stance')
 async def voting_stance(ctx):	
 	c = discord.utils.get(ctx.message.guild.channels, name='announcements')
-	msg = await c.send("Voting Stance\n```Delegates```")
+	msg = await c.send("Voting Stance\n```Delegates:```")
 
 	for emoji in ('🗳️','☑️'):
 		await msg.add_reaction(emoji)
