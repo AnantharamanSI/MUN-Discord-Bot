@@ -4,17 +4,6 @@ from random import randint
 polls = {}
 blocs = {}
 
-# def poll_create(msgid, content):
-# 	current_poll = randint(100, 999)
-
-# 	poll = {'y':0, 'n':0}
-# 	poll['content'] = content
-# 	polls[str(current_poll)] = poll
-
-# 	db[current_poll] = msgid
-
-# 	return current_poll
-
 def poll_create(msgid, content, guild_id):
 
 	poll = {'y':0, 'n':0}
@@ -33,7 +22,6 @@ def poll_result(guild_id, result):
 	# del db[str(guild_id)]
 	
 	return y, n
-
 
 def bloc_create(channel_name):
     pwd = randint(100, 999)
@@ -66,9 +54,25 @@ async def role(ctx, user : discord.Member, *, role : discord.Role):
       await user.add_roles(role) #adds role if not already has it
       await ctx.send(f"Added {role} to {user.mention}") 
 
+@bot.command(name='members')
+async def on_message(ctx):
+    i=[]
+    for guild in bot.guilds:
+      for a in guild.members:
+        i+=a
+    print(i)
+    message = await ctx.send(i)
+    await member.add_roles(role)
 
-@bot.event 
-async def on_member_join(member):
-  role = discord.utils.get(member.guild.roles, name="Delegate")
-  await member.add_roles(role)
+    role = discord.utils.get(member.guild.roles, name="Delegate")
+    await member.add_roles(role)
+"""
+"""
+@bot.command(name="add-chair")
+@commands.has_role("admin")
+async def add_chair(ctx):
+    member = ctx.message.author
+    message = await ctx.send(f"`{member}` has been made a **Chair**")
+    role = discord.utils.get(ctx.message.guild.roles, name="Chair")
+    await member.add_roles(role)
 """

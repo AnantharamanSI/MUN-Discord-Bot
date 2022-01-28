@@ -10,16 +10,12 @@ import chair
 from replit import db
 from random import choice
 
-
 import aiohttp
-import discord
 import datetime
 import warnings
 
 intents = discord.Intents.all()
-# intents.members = True
 
-#load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 client = discord.Client()
@@ -31,195 +27,186 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 bot.session = aiohttp.ClientSession()
 
 
-# DiscordComponents(bot)
-"""
-@bot.command(name="add-chair")
-@commands.has_role("admin")
-async def add_chair(ctx):
-    member = ctx.message.author
-    message = await ctx.send(f"`{member}` has been made a **Chair**")
-    role = discord.utils.get(ctx.message.guild.roles, name="Chair")
-    await member.add_roles(role)
-"""
 @bot.event
 async def on_connect():
 	print('Bot Connected: '+str(client))
 
+
 @bot.command(name="reverse-roles")
 async def reverse(ctx):
-  await ctx.send("Easter Egg UNLOCKED!\n🎉🎉🎉")
-  msg = ctx.message
-  await msg.delete()
-  r1 = discord.utils.get(ctx.message.guild.roles, name='Chair')
-  r2 = discord.utils.get(ctx.message.guild.roles, name='Delegate')
-  members = ctx.guild.members
-  for person in members:
-    if person == bot.user.name:
-        continue
-    if r1 not in person.roles:
-      await person.remove_roles(r2)
-      await person.add_roles(r1)
-    else:
-      await person.remove_roles(r1)
-      await person.add_roles(r2)
-  #add timer here
+    await ctx.send("Easter Egg UNLOCKED!\n🎉🎉🎉")
+    msg = ctx.message
+    await msg.delete()
+
+    r1 = discord.utils.get(ctx.message.guild.roles, name='Chair')
+    r2 = discord.utils.get(ctx.message.guild.roles, name='Delegate')
+
+    members = ctx.guild.members
+    for person in members:
+        if person == bot.user:
+            continue
+        if r1 not in person.roles:
+            await person.remove_roles(r2)
+            await person.add_roles(r1)
+        else:
+            await person.remove_roles(r1)
+            await person.add_roles(r2)
   
 
-  
 @bot.event
 async def on_ready():
-  #Bot Watching Status
+    ac = choice(["the United Nations", "The 11th Hour", "mun help", "Rick Astley"])
 
-  ac = choice(["the United Nations", "The 11th Hour", "mun help", "Rick Astley"])
-  await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=ac))
- 
-  print(f'{bot.user} has connected to Discord!')
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=ac))
+    
+    print(f'{bot.user} has connected to Discord!')
 
-  db["del_msg_id"] = ""
-  db["voting_msg_id"] = ""
-  db["hand_msg_id"] = ""
+    db["del_msg_id"] = ""
+    db["voting_msg_id"] = ""
+    db["hand_msg_id"] = ""
 
+    #Create channels
+    req = { "MUN Manager Channels":["announcements","poll-log"], "Bloc Channels":["bloc-announcements"] }
+    categories_req = set(list(req.keys()))
 
-  #Create channels
-  req = { "Bot Channels":["announcements","poll-log","roles"], "Bloc Channels":["bloc-announcements"] }
-  categories_req = set(list(req.keys()))
-  for server in bot.guilds:
-    categories_dict = {c.name:c for c in server.categories}
-    categories_present = set(categories_dict.keys())
-    categories_to_make = categories_req.difference(categories_present)
-    for category_name in categories_to_make:
-      category = await create_category(server,category_name)
-      categories_dict[category_name] = category
-    for category_name in req.keys():
-      category = categories_dict.get(category_name)
-      channels_req = req.get(category.name,[])
-      channels_req = set([c.lower() for c in channels_req])
-      channels_present = set([c.name for c in category.channels])
-      channels_to_make = channels_req.difference(channels_present)
-      for channel_name in channels_to_make:
-        await create_channel(server, category, channel_name)
-        
-  #Reaction roles
-  
+    for server in bot.guilds:
+        categories_dict = {c.name:c for c in server.categories}
+        categories_present = set(categories_dict.keys())
+        categories_to_make = categories_req.difference(categories_present)
+
+        for category_name in categories_to_make:
+            category = await create_category(server,category_name)
+            categories_dict[category_name] = category
+
+        for category_name in req.keys():
+            category = categories_dict.get(category_name)
+            channels_req = req.get(category.name,[])
+            channels_req = set([c.lower() for c in channels_req])
+            channels_present = set([c.name for c in category.channels])
+            channels_to_make = channels_req.difference(channels_present)
+
+            for channel_name in channels_to_make:
+                await create_channel(server, category, channel_name)
+         
 async def create_channel(server, category, name):
-  bot_role = discord.utils.get(server.roles, name="Omkar")
-  overwrite = {
-			server.default_role: discord.PermissionOverwrite(send_messages=False),
-			bot_role: discord.PermissionOverwrite(send_messages=True),
-      }
-  ch = await server.create_text_channel(name, overwrites = overwrite, category = category)
-  return ch
+    bot_role = discord.utils.get(server.roles, name="MUN Manager")
+    overwrite = {
+                server.default_role: discord.PermissionOverwrite(send_messages=False),
+                bot_role: discord.PermissionOverwrite(send_messages=True),
+        }
+    ch = await server.create_text_channel(name, overwrites = overwrite, category = category)
 
+    await ch.send("Thank you for using MUN Manager!\nUse `mun help` to see commands.")
+    
+    return ch
 
 async def create_category(server, name):
-  category = discord.utils.get(server.categories, name=name)
-  if category is None:
-    await server.create_category(name)
     category = discord.utils.get(server.categories, name=name)
-  return category
+    if category is None:
+        await server.create_category(name)
+        category = discord.utils.get(server.categories, name=name)
+    return category
+
+
+@bot.event
+async def on_member_join(member):
+    role = discord.utils.get(member.guild.roles, name="Delegate")
+    await member.add_roles(role)
+
 
 @bot.command(name="startup")
 async def startup(ctx):
 	guild = ctx.guild
+
 	if type(discord.utils.get(ctx.guild.roles, name="Chair")) is type(None):
 		await guild.create_role(name="Chair", colour=discord.Colour(0x57F287))
+
 	if type(discord.utils.get(ctx.guild.roles, name="Delegate")) is type(None):
 		await guild.create_role(name="Delegate", colour=discord.Colour(0xFEE75C))
+
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CommandNotFound):
 	    await ctx.send("This is not a command.\nSee `mun help` for available commands.")
 	    return
+
     if isinstance(error, MissingRequiredArgument):
 	    await ctx.send("Missing arguments in command.\nSee `mun help` for required arguments.")
 	    return
+
     if isinstance(error, MissingRole):
 	    await ctx.send("Only Chairs can use commands.")
 	    return
+
     if isinstance(error, MissingPermissions):
 	    await ctx.send("Some permissions are missing.")
 	    return
+
     if isinstance(error, BadArgument):
         await ctx.send("Arguments in command are of the incorrect type.\nSee `mun help` for appropriate arguments.")
         return
     
     raise error
 
-@bot.event
-async def on_member_join(member):
-  role = discord.utils.get(member.guild.roles, name="Delegate")
-  await member.add_roles(role)
-
-# @bot.command(name='members')
-# async def on_message(ctx):
-#     i=[]
-#     for guild in bot.guilds:
-#       for a in guild.members:
-#         i+=a
-#     print(i)
-#     message = await ctx.send(i)
-    # await member.add_roles(role)
-
-    # role = discord.utils.get(member.guild.roles, name="Delegate")
-    # await member.add_roles(role)
 
 @bot.command(name='create-bloc')
 async def test_bloc(ctx, *, text):
-  member = ctx.message.author
-  bloc_name = text
-  
-  chair_role = discord.utils.get(ctx.message.guild.roles, name='Chair')
-  category = discord.utils.get(ctx.message.guild.categories, name='Bloc Channels')
-  bot_role = discord.utils.get(ctx.message.guild.roles, name='Omkar')
-
-  overwrite = {
-    ctx.message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
- 	  member: discord.PermissionOverwrite(read_messages=True,send_messages=True),
-    chair_role: discord.PermissionOverwrite(read_messages=True),
-    bot_role: discord.PermissionOverwrite(read_messages=True,send_messages=True)}
+    member = ctx.message.author
+    bloc_name = text
     
-  ch = await ctx.message.guild.create_text_channel(bloc_name, overwrites = overwrite, category = category)
-  vc = await ctx.message.guild.create_voice_channel(bloc_name, category = category, overwrites = overwrite)
+    chair_role = discord.utils.get(ctx.message.guild.roles, name='Chair')
+    category = discord.utils.get(ctx.message.guild.categories, name='Bloc Channels')
+    bot_role = discord.utils.get(ctx.message.guild.roles, name='MUN Manager')
 
-  channel = discord.utils.get(ctx.message.guild.channels, name = 'bloc-announcements')
-  msg = await channel.send(str(member) + " has created the " + str(bloc_name) + ".")
-  
-  pwd = chair.bloc_create(bloc_name)
-  msg2 = await ch.send("The password is " + str(pwd))
-  await msg2.pin()
-  
+    overwrite = {
+        ctx.message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+        member: discord.PermissionOverwrite(read_messages=True,send_messages=True),
+        chair_role: discord.PermissionOverwrite(read_messages=True),
+        bot_role: discord.PermissionOverwrite(read_messages=True,send_messages=True)}
+    
+    ch = await ctx.message.guild.create_text_channel(bloc_name, overwrites = overwrite, category = category)
+    await ctx.message.guild.create_voice_channel(bloc_name, category = category, overwrites = overwrite)
 
+    channel = discord.utils.get(ctx.message.guild.channels, name = 'bloc-announcements')
+    await channel.send(str(member) + " has created the " + str(bloc_name) + ".")
+  
+    pwd = chair.bloc_create(bloc_name)
+    msg2 = await ch.send("The password is " + str(pwd))
+    await msg2.pin()
+  
 @bot.command(name="join-bloc")
 async def join_bloc(ctx, bloc_name, pwd):
-  member = ctx.message.author
-  # print(bloc_name, pwd)
-  if bloc_name not in chair.blocs:
-      await ctx.send("This bloc doesn't exist yet.")
-      return
-#   print(chair.blocs[bloc_name])
-  if chair.blocs[bloc_name] == int(pwd):
-    #print("PWD is correct")
-    overwrite = discord.PermissionOverwrite()
-    overwrite.send_messages = True
-    overwrite.read_messages = True
-    channel = discord.utils.get(ctx.message.guild.channels, name = bloc_name)
-    await channel.set_permissions(member, overwrite=overwrite)
+    member = ctx.message.author
+
+    if bloc_name not in chair.blocs:
+        await ctx.send("This bloc doesn't exist yet.")
+        return
+
+    if chair.blocs[bloc_name] == int(pwd):
+        overwrite = discord.PermissionOverwrite()
+        overwrite.send_messages = True
+        overwrite.read_messages = True
+
+        channel = discord.utils.get(ctx.message.guild.channels, name = bloc_name)
+        await channel.set_permissions(member, overwrite=overwrite)
     
-    overwrite.stream = True
-    overwrite.view_channel = True
-    vchannel = discord.utils.get(ctx.guild.voice_channels, name = bloc_name)
-    # vc_list = ctx.guild.voice_channels
-    # print(vc_list)
-    await vchannel.set_permissions(member, overwrite=overwrite)
-  else:
-    await ctx.send("The password is incorrect.")
-        
+        overwrite.stream = True
+        overwrite.view_channel = True
+        vchannel = discord.utils.get(ctx.guild.voice_channels, name = bloc_name)
+
+        await vchannel.set_permissions(member, overwrite=overwrite)
+
+    else:
+        await ctx.send("The password is incorrect.")
+
+
 @commands.has_role("Chair")
 @bot.command(name='mute')
 async def vcmute(ctx):
     vc = ctx.author.voice.channel
     role = discord.utils.get(ctx.message.guild.roles, name='Chair')
+
     for member in vc.members:
       if role not in member.roles:
         await member.edit(mute=True)
@@ -229,15 +216,18 @@ async def vcmute(ctx):
 async def vcunmute(ctx):
     vc = ctx.author.voice.channel
     role = discord.utils.get(ctx.message.guild.roles, name='Chair')
+
     for member in vc.members:
       if role not in member.roles:
         await member.edit(mute=False)
+
 
 @bot.event
 async def on_reaction_add(reaction, user):
     cc = db["voting_msg_id"]
     dc = db["del_msg_id"]
     hr = db["hand_msg_id"]
+
     if reaction.message.id == cc:
         msg = reaction.message
         if user.display_name in msg.content or user.display_name == bot.user.name:
@@ -267,9 +257,9 @@ async def on_reaction_add(reaction, user):
 
 @bot.event
 async def on_reaction_remove(reaction, user):
-
     cc = db["voting_msg_id"]
     hr = db["hand_msg_id"]
+
     if reaction.message.id == cc:
         msg = reaction.message
         if user.display_name not in msg.content:
@@ -281,7 +271,6 @@ async def on_reaction_remove(reaction, user):
         s = s[:ind-1]+s[ind + len(user.display_name)+4:]
 
         await msg.edit(content=f"{s}")
-
 
     elif reaction.message.id == hr:
         msg = reaction.message
@@ -295,10 +284,10 @@ async def on_reaction_remove(reaction, user):
 
     return
 
-@commands.has_role("Chair")
-@bot.command(name='say')
-async def repeat(ctx, *, arg):
-    await ctx.send(arg)
+# @commands.has_role("Chair")
+# @bot.command(name='say')
+# async def repeat(ctx, *, arg):
+#     await ctx.send(arg)
 
 @commands.has_role("Chair")
 @bot.command(name='raise-hand')
@@ -309,12 +298,16 @@ async def raise_hand(ctx):
 
     db["hand_msg_id"] = msg.id
 
-###################################
+
 async def timeout_user(*, user_id: int, guild_id: int, until):
     headers = {"Authorization": f"Bot {bot.http.token}"}
+
     url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{user_id}"
+
     timeout = (datetime.datetime.utcnow() + datetime.timedelta(minutes=until)).isoformat()
+
     json = {'communication_disabled_until': timeout}
+
     async with bot.session.patch(url, json=json, headers=headers) as session:
         if session.status in range(200, 299):
            return True
@@ -327,20 +320,20 @@ async def gag(ctx: commands.Context, member: discord.Member, until: int):
         await ctx.send("Max. gag limit is 60 minutes.")
         return
     handshake = await timeout_user(user_id=member.id, guild_id=ctx.guild.id, until=until)
-    # print(handshake)
     if handshake:
          return await ctx.send(f"Successfully timed out user for {until} minutes.")
     await ctx.send("Gag a delegate and not your colleagues.")
 
-@commands.has_role("Chair")
-@bot.command(name='set-del')
-async def set_del(ctx):
-    c = discord.utils.get(ctx.message.guild.channels, name='roles')
-    msg = await c.send("Click the reaction to set yourself as delegate.")
-    await msg.add_reaction('✅')
-    # await msg.pin()
 
-    db["del_msg_id"] = msg.id
+# @commands.has_role("Chair")
+# @bot.command(name='set-del')
+# async def set_del(ctx):
+#     c = discord.utils.get(ctx.message.guild.channels, name='roles')
+#     msg = await c.send("Click the reaction to set yourself as delegate.")
+#     await msg.add_reaction('✅')
+
+#     db["del_msg_id"] = msg.id
+
 
 @commands.has_role("Chair")	
 @bot.command(name='voting-stance')
@@ -366,7 +359,6 @@ async def voting_end(ctx):
 	
 	for r in msg.reactions: await msg.clear_reaction(r)
 
-# db["voting_msg_id"] = 
 
 @commands.has_role("Chair")
 @bot.command(name='poll')
@@ -378,7 +370,6 @@ async def poll_start(ctx, *, text):
 	for emoji in ('👍', '👎'):
 		await message.add_reaction(emoji)
 	
-	# pid = chair.poll_create(message.id, text)
 	guild_id = ctx.message.guild.id
 	chair.poll_create(message.id, text, guild_id)
 
@@ -419,10 +410,6 @@ async def poll_stop(ctx):
 @commands.has_role("Chair")
 @bot.command(pass_content=True)
 async def help(ctx):
-    # if prefixTable.find({"_id":ctx.guild.id}).count() > 0:
-    #     preftag=prefixTable.find_one({"_id":ctx.guild.id})
-    #     p=preftag.get("prefix")
-    p = 'mun '
 
     embedVar = discord.Embed(title="MUN Help",
                              description="List of commands.",
@@ -434,87 +421,92 @@ async def help(ctx):
     )
 
     embedVar.add_field(name="Prefix",
-                       value="Prefix is set to: " + p,
+                       value="**mun [command] [arguments]**",
                        inline=False)
 
-    # embedVar.add_field(name=p + "prefix [new prefix]",
-    #                    value="Change the bot's prefix (Chairs only).",
-    #                    inline=True)
-
     embedVar.add_field(
-        name="Chair Commands",
-        value="These commands can only be used by the Chair role only.",
+        name="**Chair Commands**",
+        value="These commands can only be used by the Chair role only",
         inline=False)
 
     embedVar.add_field(
-        name= p + "startup",
+        name= "startup",
         value=
-        "IMPORTANT! Run this command to set up roles in server before the running any other commands",
+        "*IMPORTANT!* Run this command to set up roles in server before running any other command",
         inline=False)
 
     embedVar.add_field(
-        name= p + "poll",
+        name= "poll",
         value=
         "Start a vote in the announcements channel.",
         inline=True)
 
     embedVar.add_field(
-        name= p + "poll end",
+        name= "poll-end",
         value="Stop the vote in the announcements channel.",
         inline=True)
 
     embedVar.add_field(
-        name= p + "voting-stance",
+        name= "voting-stance",
         value=
         "Pick Voting Stance in announcements channel",
         inline=True)
 
     embedVar.add_field(
-        name= p + "raise-hand",
+        name= "voting-end",
+        value=
+        "End Voting Stance in announcements channel",
+        inline=True)
+
+    embedVar.add_field(
+        name= "raise-hand",
         value=
         "Allow dels to raise hands in announcements channel",
         inline=True)
 
     embedVar.add_field(
-        name= p + "mute",
+        name= "mute",
         value=
         "Mute all delegates in the current vc",
         inline=True)
 
     embedVar.add_field(
-        name= p + "unmute",
+        name= "unmute",
         value=
         "Unmute all delegates in the current vc",
         inline=True)
 
     embedVar.add_field(
-        name= p + "gag [@user] [time]",
+        name= "gag [@user] [time]",
         value=
         "Timeout [@user] for [time] minutes (max is 60 mins)",
         inline=True)
 
 
-    embedVar.add_field(name="Delegate Commands",
+    embedVar.add_field(name="**Delegate Commands**",
                        value="These commands can be used by anyone.",
                        inline=False)
 
-    embedVar.add_field(name=p + "create-bloc [name]",
+    embedVar.add_field(name="create-bloc [name]",
                        value="Creates a private txt & vc channel with name [name]",
                        inline=True)
 
-    embedVar.add_field(name=p + "join-bloc [name] [password]",
-                       value="Join bloc [name] using password sent on [name] channel",
+    embedVar.add_field(name="join-bloc [name] [password]",
+                       value="Join bloc [name] using [password] sent on [name] channel",
                        inline=True)
 
-    embedVar2 = discord.Embed(title="Support Omkar",
-                              description="Useful links for using Omkar.",
+    embedVar2 = discord.Embed(title="Support MUN Manager",
+                              description="Useful links for using MUN Manager.",
                               color=discord.Color.from_rgb(78, 134, 219))
-    # embedVar2.add_field(name="Invite", value="[Add me!](https://discord.com/oauth2/authorize?client_id=767330479757197323&permissions=0&scope=bot)", inline=True)
-    # embedVar2.add_field(name="Support Server", value='[Join!](https://discord.gg/94ShKfuqrk)', inline=True)
-    # embedVar2.add_field(name="Vote", value='[Rate me!](https://top.gg/bot/767330479757197323/vote)', inline=True)
+
     embedVar2.add_field(
-        name="Source Code",
-        value='[View!](https://replit.com/@Anantharaman_SS/MUN-Bot#src/bot.py)',
+        name="Invite to server",
+        value='[Add me!](https://discord.com/api/oauth2/authorize?client_id=907209269894590484&permissions=8&scope=bot)',
+        inline=True)
+
+    embedVar2.add_field(
+        name="Discord API docs",
+        value='[discord.py!](https://discordpy.readthedocs.io/en/stable/)',
         inline=True)
 
     await ctx.channel.send(embed=embedVar)
