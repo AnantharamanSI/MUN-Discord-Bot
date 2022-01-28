@@ -8,6 +8,8 @@ from discord.ext.commands import CommandNotFound, MissingRequiredArgument, Missi
 
 import chair
 from replit import db
+from random import choice
+
 
 import aiohttp
 import discord
@@ -43,10 +45,34 @@ async def add_chair(ctx):
 async def on_connect():
 	print('Bot Connected: '+str(client))
 
+@bot.command(name="reverse-roles")
+async def reverse(ctx):
+  await ctx.send("Easter Egg UNLOCKED!\n🎉🎉🎉")
+  msg = ctx.message
+  await msg.delete()
+  r1 = discord.utils.get(ctx.message.guild.roles, name='Chair')
+  r2 = discord.utils.get(ctx.message.guild.roles, name='Delegate')
+  members = ctx.guild.members
+  for person in members:
+    if person == bot.user.name:
+        continue
+    if r1 not in person.roles:
+      await person.remove_roles(r2)
+      await person.add_roles(r1)
+    else:
+      await person.remove_roles(r1)
+      await person.add_roles(r2)
+  #add timer here
+  
+
+  
 @bot.event
 async def on_ready():
   #Bot Watching Status
-  await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="the United Nations"))
+
+  ac = choice(["the United Nations", "The 11th Hour", "mun help", "Rick Astley"])
+  await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=ac))
+ 
   print(f'{bot.user} has connected to Discord!')
 
   db["del_msg_id"] = ""
@@ -306,8 +332,6 @@ async def gag(ctx: commands.Context, member: discord.Member, until: int):
          return await ctx.send(f"Successfully timed out user for {until} minutes.")
     await ctx.send("Gag a delegate and not your colleagues.")
 
-###################################
-
 @commands.has_role("Chair")
 @bot.command(name='set-del')
 async def set_del(ctx):
@@ -409,8 +433,8 @@ async def help(ctx):
         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/UN_flag.png/1024px-UN_flag.png"
     )
 
-    embedVar.add_field(name="Current Prefix",
-                       value="Current prefix is set to: " + p,
+    embedVar.add_field(name="Prefix",
+                       value="Prefix is set to: " + p,
                        inline=False)
 
     # embedVar.add_field(name=p + "prefix [new prefix]",
@@ -419,30 +443,67 @@ async def help(ctx):
 
     embedVar.add_field(
         name="Chair Commands",
-        value="These commands can only be used by the Chair role.",
+        value="These commands can only be used by the Chair role only.",
         inline=False)
 
     embedVar.add_field(
-        name=p + "startSession",
+        name= p + "startup",
         value=
-        "Enables all commands for a session and invites bot to voice channel.",
+        "IMPORTANT! Run this command to set up roles in server before the running any other commands",
+        inline=False)
+
+    embedVar.add_field(
+        name= p + "poll",
+        value=
+        "Start a vote in the announcements channel.",
         inline=True)
 
     embedVar.add_field(
-        name=p + "register [delegate] [status]",
-        value="Status can be present (p),present and voting(pv) or absent (a)",
+        name= p + "poll end",
+        value="Stop the vote in the announcements channel.",
         inline=True)
 
-    embedVar.add_field(name=p + "resume",
-                       value="Resume a paused caucus.",
-                       inline=True)
+    embedVar.add_field(
+        name= p + "voting-stance",
+        value=
+        "Pick Voting Stance in announcements channel",
+        inline=True)
+
+    embedVar.add_field(
+        name= p + "raise-hand",
+        value=
+        "Allow dels to raise hands in announcements channel",
+        inline=True)
+
+    embedVar.add_field(
+        name= p + "mute",
+        value=
+        "Mute all delegates in the current vc",
+        inline=True)
+
+    embedVar.add_field(
+        name= p + "unmute",
+        value=
+        "Unmute all delegates in the current vc",
+        inline=True)
+
+    embedVar.add_field(
+        name= p + "gag [@user] [time]",
+        value=
+        "Timeout [@user] for [time] minutes (max is 60 mins)",
+        inline=True)
+
 
     embedVar.add_field(name="Delegate Commands",
                        value="These commands can be used by anyone.",
                        inline=False)
 
-    embedVar.add_field(name=p + "addGS",
-                       value="Adds your name to the general speakers list.",
+    embedVar.add_field(name=p + "create-bloc [name]",
+                       value="Creates a private txt & vc channel with name [name]",
+                       inline=True)
+
+    embedVar.add_field(name=p + "join-bloc [name] [password]",
+                       value="Join bloc [name] using password sent on [name] channel",
                        inline=True)
 
     embedVar2 = discord.Embed(title="Support Omkar",
