@@ -4,7 +4,7 @@ import discord
 from dotenv import load_dotenv
 from discord.utils import get
 from discord.ext import commands, tasks
-from discord.ext.commands import CommandNotFound, MissingRequiredArgument, MissingRole, MissingPermissions
+from discord.ext.commands import CommandNotFound, MissingRequiredArgument, MissingRole, MissingPermissions, BadArgument
 
 import chair
 from replit import db
@@ -103,10 +103,10 @@ async def startup(ctx):
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CommandNotFound):
-	    await ctx.send("This is not a command.\nSee `mun help` for available commands")
+	    await ctx.send("This is not a command.\nSee `mun help` for available commands.")
 	    return
     if isinstance(error, MissingRequiredArgument):
-	    await ctx.send("Missing arguments in command.\nSee `mun help` for required arguments")
+	    await ctx.send("Missing arguments in command.\nSee `mun help` for required arguments.")
 	    return
     if isinstance(error, MissingRole):
 	    await ctx.send("Only Chairs can use commands.")
@@ -114,6 +114,9 @@ async def on_command_error(ctx, error):
     if isinstance(error, MissingPermissions):
 	    await ctx.send("Some permissions are missing.")
 	    return
+    if isinstance(error, BadArgument):
+        await ctx.send("Arguments in command are of the incorrect type.\nSee `mun help` for appropriate arguments.")
+        return
     
     raise error
 
@@ -139,19 +142,27 @@ async def on_member_join(member):
 async def test_bloc(ctx, *, text):
   member = ctx.message.author
   bloc_name = text
+  
   chair_role = discord.utils.get(ctx.message.guild.roles, name='Chair')
   category = discord.utils.get(ctx.message.guild.categories, name='Bloc Channels')
+  bot_role = discord.utils.get(ctx.message.guild.roles, name='Omkar')
+
   overwrite = {
     ctx.message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
  	  member: discord.PermissionOverwrite(read_messages=True,send_messages=True),
-    chair_role: discord.PermissionOverwrite(read_messages=True)}
+    chair_role: discord.PermissionOverwrite(read_messages=True),
+    bot_role: discord.PermissionOverwrite(read_messages=True,send_messages=True)}
+    
   ch = await ctx.message.guild.create_text_channel(bloc_name, overwrites = overwrite, category = category)
-  channel = discord.utils.get(ctx.message.guild.channels,name = 'bloc-announcements')
+  vc = await ctx.message.guild.create_voice_channel(bloc_name, category = category, overwrites = overwrite)
+
+  channel = discord.utils.get(ctx.message.guild.channels, name = 'bloc-announcements')
   msg = await channel.send(str(member) + " has created the " + str(bloc_name) + ".")
+  
   pwd = chair.bloc_create(bloc_name)
   msg2 = await ch.send("The password is " + str(pwd))
   await msg2.pin()
-
+  
 
 @bot.command(name="join-bloc")
 async def join_bloc(ctx, bloc_name, pwd):
@@ -168,9 +179,33 @@ async def join_bloc(ctx, bloc_name, pwd):
     overwrite.read_messages = True
     channel = discord.utils.get(ctx.message.guild.channels, name = bloc_name)
     await channel.set_permissions(member, overwrite=overwrite)
+    
+    overwrite.stream = True
+    overwrite.view_channel = True
+    vchannel = discord.utils.get(ctx.guild.voice_channels, name = bloc_name)
+    # vc_list = ctx.guild.voice_channels
+    # print(vc_list)
+    await vchannel.set_permissions(member, overwrite=overwrite)
   else:
     await ctx.send("The password is incorrect.")
         
+@commands.has_role("Chair")
+@bot.command(name='mute')
+async def vcmute(ctx):
+    vc = ctx.author.voice.channel
+    role = discord.utils.get(ctx.message.guild.roles, name='Chair')
+    for member in vc.members:
+      if role not in member.roles:
+        await member.edit(mute=True)
+        
+@commands.has_role("Chair")
+@bot.command(name='unmute')
+async def vcunmute(ctx):
+    vc = ctx.author.voice.channel
+    role = discord.utils.get(ctx.message.guild.roles, name='Chair')
+    for member in vc.members:
+      if role not in member.roles:
+        await member.edit(mute=False)
 
 @bot.event
 async def on_reaction_add(reaction, user):
@@ -247,9 +282,8 @@ async def raise_hand(ctx):
     await msg.add_reaction('🤚')
 
     db["hand_msg_id"] = msg.id
-    
-#############################
 
+###################################
 async def timeout_user(*, user_id: int, guild_id: int, until):
     headers = {"Authorization": f"Bot {bot.http.token}"}
     url = f"https://discord.com/api/v9/guilds/{guild_id}/members/{user_id}"
@@ -263,11 +297,15 @@ async def timeout_user(*, user_id: int, guild_id: int, until):
 @commands.has_role("Chair")
 @bot.command(name='gag')
 async def gag(ctx: commands.Context, member: discord.Member, until: int):
+    if until > 60:
+        await ctx.send("Max. gag limit is 60 minutes.")
+        return
     handshake = await timeout_user(user_id=member.id, guild_id=ctx.guild.id, until=until)
-    print(handshake)
+    # print(handshake)
     if handshake:
          return await ctx.send(f"Successfully timed out user for {until} minutes.")
-    await ctx.send("Something went wrong")
+    await ctx.send("Gag a delegate and not your colleagues.")
+
 ###################################
 
 @commands.has_role("Chair")
