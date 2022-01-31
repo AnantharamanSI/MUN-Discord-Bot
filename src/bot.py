@@ -69,6 +69,8 @@ async def on_ready():
     req = { "MUN Manager Channels":["announcements","poll-log"], "Bloc Channels":["bloc-announcements"] }
     categories_req = set(list(req.keys()))
 
+    print("Current servers:", bot.guilds)
+
     for server in bot.guilds:
         categories_dict = {c.name:c for c in server.categories}
         categories_present = set(categories_dict.keys())
@@ -95,10 +97,9 @@ async def create_channel(server, category, name):
                 bot_role: discord.PermissionOverwrite(send_messages=True),
         }
     ch = await server.create_text_channel(name, overwrites = overwrite, category = category)
-
     await ch.send("Thank you for using MUN Manager!\nUse `mun help` to see commands.")
     
-    return ch
+    # return ch
 
 async def create_category(server, name):
     category = discord.utils.get(server.categories, name=name)
@@ -110,9 +111,11 @@ async def create_category(server, name):
 
 @bot.event
 async def on_member_join(member):
-    role = discord.utils.get(member.guild.roles, name="Delegate")
-    await member.add_roles(role)
-
+    try:
+        role = discord.utils.get(member.guild.roles, name="Delegate")
+        await member.add_roles(role)
+    except Exception as e:
+        print(e, "Delegate role has not been added?")
 
 @bot.command(name="startup")
 async def startup(ctx):
@@ -284,11 +287,6 @@ async def on_reaction_remove(reaction, user):
 
     return
 
-# @commands.has_role("Chair")
-# @bot.command(name='say')
-# async def repeat(ctx, *, arg):
-#     await ctx.send(arg)
-
 @commands.has_role("Chair")
 @bot.command(name='raise-hand')
 async def raise_hand(ctx):
@@ -323,17 +321,6 @@ async def gag(ctx: commands.Context, member: discord.Member, until: int):
     if handshake:
          return await ctx.send(f"Successfully timed out user for {until} minutes.")
     await ctx.send("Gag a delegate and not your colleagues.")
-
-
-# @commands.has_role("Chair")
-# @bot.command(name='set-del')
-# async def set_del(ctx):
-#     c = discord.utils.get(ctx.message.guild.channels, name='roles')
-#     msg = await c.send("Click the reaction to set yourself as delegate.")
-#     await msg.add_reaction('✅')
-
-#     db["del_msg_id"] = msg.id
-
 
 @commands.has_role("Chair")	
 @bot.command(name='voting-stance')
@@ -372,6 +359,7 @@ async def poll_start(ctx, *, text):
 	
 	guild_id = ctx.message.guild.id
 	chair.poll_create(message.id, text, guild_id)
+
 
 @commands.has_role("Chair")
 @bot.command(name='poll-end')
@@ -425,43 +413,44 @@ async def help(ctx):
                        inline=False)
 
     embedVar.add_field(
+            name= "mun startup",
+            value=
+            "*IMPORTANT!* Run this command to set up roles in server before running any other command",
+            inline=False)
+
+
+    embedVar.add_field(
         name="**Chair Commands**",
-        value="These commands can only be used by the Chair role only",
+        value="These commands can be used by the Chair role only\nAll interactions take place in the announcements channel",
         inline=False)
 
     embedVar.add_field(
-        name= "startup",
+        name= "poll [motion]",
         value=
-        "*IMPORTANT!* Run this command to set up roles in server before running any other command",
-        inline=False)
-
-    embedVar.add_field(
-        name= "poll",
-        value=
-        "Start a vote in the announcements channel.",
+        "Start a vote for [motion] motion",
         inline=True)
 
     embedVar.add_field(
         name= "poll-end",
-        value="Stop the vote in the announcements channel.",
+        value="Stop the vote that has been started",
         inline=True)
 
     embedVar.add_field(
         name= "voting-stance",
         value=
-        "Pick Voting Stance in announcements channel",
+        "Pick Voting Stance",
         inline=True)
 
     embedVar.add_field(
         name= "voting-end",
         value=
-        "End Voting Stance in announcements channel",
+        "End Voting Stance",
         inline=True)
 
     embedVar.add_field(
         name= "raise-hand",
         value=
-        "Allow dels to raise hands in announcements channel",
+        "Allow dels to raise hands",
         inline=True)
 
     embedVar.add_field(
