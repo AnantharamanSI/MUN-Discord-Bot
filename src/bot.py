@@ -1,12 +1,11 @@
+#Import libraries
 import os
 
 import discord
-from dotenv import load_dotenv
-from discord.utils import get
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord.ext.commands import CommandNotFound, MissingRequiredArgument, MissingRole, MissingPermissions, BadArgument
 
-import chair
+import utils
 from replit import db
 from random import choice
 
@@ -14,45 +13,29 @@ import aiohttp
 import datetime
 import warnings
 
-intents = discord.Intents.all()
+intents = discord.Intents.all() #Give bot all privileges
 
-TOKEN = os.getenv('DISCORD_TOKEN')
+TOKEN = os.getenv('DISCORD_TOKEN') #Secret key for accessing the API
 
 client = discord.Client()
 
-bot = commands.Bot(command_prefix='mun ', intents=intents)
-bot.remove_command('help')
+bot = commands.Bot(command_prefix='mun ', intents=intents) #Set prefix to 'mun '
+bot.remove_command('help') #Replaced with our own command
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 bot.session = aiohttp.ClientSession()
 
-
+"""
+Called when the client (bot) has successfully connected to Discord.
+"""
 @bot.event
 async def on_connect():
 	print('Bot Connected: '+str(client))
 
 
-@bot.command(name="reverse-roles")
-async def reverse(ctx):
-    await ctx.send("Easter Egg UNLOCKED!\n🎉🎉🎉")
-    msg = ctx.message
-    await msg.delete()
-
-    r1 = discord.utils.get(ctx.message.guild.roles, name='Chair')
-    r2 = discord.utils.get(ctx.message.guild.roles, name='Delegate')
-
-    members = ctx.guild.members
-    for person in members:
-        if person == bot.user:
-            continue
-        if r1 not in person.roles:
-            await person.remove_roles(r2)
-            await person.add_roles(r1)
-        else:
-            await person.remove_roles(r1)
-            await person.add_roles(r2)
-  
-
+"""
+Called when the client (bot) is done preparing the data received from Discord and has been authenticated. Used to set up the server with necessary text and voice channels by calling create_category and create_channel.
+"""
 @bot.event
 async def on_ready():
     ac = choice(["the United Nations", "The 11th Hour", "mun help", "Rick Astley"])
@@ -89,6 +72,7 @@ async def on_ready():
 
             for channel_name in channels_to_make:
                 await create_channel(server, category, channel_name)
+ 
          
 async def create_channel(server, category, name):
     bot_role = discord.utils.get(server.roles, name="MUN Manager")
@@ -98,8 +82,6 @@ async def create_channel(server, category, name):
         }
     ch = await server.create_text_channel(name, overwrites = overwrite, category = category)
     await ch.send("Thank you for using MUN Manager!\nUse `mun help` to see commands.")
-    
-    # return ch
 
 async def create_category(server, name):
     category = discord.utils.get(server.categories, name=name)
@@ -109,6 +91,9 @@ async def create_category(server, name):
     return category
 
 
+"""
+Called when a member leaves or joins a server. Used to assign Delegate role on the server.
+"""
 @bot.event
 async def on_member_join(member):
     try:
@@ -117,17 +102,26 @@ async def on_member_join(member):
     except Exception as e:
         print(e, "Delegate role has not been added?")
 
+
+"""
+Sets up the server with necessary roles - Chair and Delegate. It is a prerequisite for running any other command.
+"""
 @bot.command(name="startup")
 async def startup(ctx):
-	guild = ctx.guild
+    guild = ctx.guild #retrieves server spcific information
 
-	if type(discord.utils.get(ctx.guild.roles, name="Chair")) is type(None):
-		await guild.create_role(name="Chair", colour=discord.Colour(0x57F287))
+    await ctx.send("Chair and Delegate roles have been added!")
 
-	if type(discord.utils.get(ctx.guild.roles, name="Delegate")) is type(None):
-		await guild.create_role(name="Delegate", colour=discord.Colour(0xFEE75C))
+    if type(discord.utils.get(ctx.guild.roles, name="Chair")) is type(None):
+	    await guild.create_role(name="Chair", colour=discord.Colour(0x57F287))
+
+    if type(discord.utils.get(ctx.guild.roles, name="Delegate")) is type(None):
+	    await guild.create_role(name="Delegate", colour=discord.Colour(0xFEE75C))
 
 
+"""
+An error handler that is called when an error is raised inside a command either through user input error or server/code inconsistency.
+"""
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, CommandNotFound):
@@ -153,8 +147,11 @@ async def on_command_error(ctx, error):
     raise error
 
 
+"""
+Creates a private text & voice channel with a particular name that is invisible to all other Delegates. A unique password is generated using bloc_pwd_create.
+"""
 @bot.command(name='create-bloc')
-async def test_bloc(ctx, *, text):
+async def create_bloc(ctx, *, text):
     member = ctx.message.author
     bloc_name = text
     
@@ -162,6 +159,7 @@ async def test_bloc(ctx, *, text):
     category = discord.utils.get(ctx.message.guild.categories, name='Bloc Channels')
     bot_role = discord.utils.get(ctx.message.guild.roles, name='MUN Manager')
 
+    #Sets permissions for members
     overwrite = {
         ctx.message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
         member: discord.PermissionOverwrite(read_messages=True,send_messages=True),
@@ -174,19 +172,23 @@ async def test_bloc(ctx, *, text):
     channel = discord.utils.get(ctx.message.guild.channels, name = 'bloc-announcements')
     await channel.send(str(member) + " has created the " + str(bloc_name) + ".")
   
-    pwd = chair.bloc_create(bloc_name)
+    pwd = utils.bloc_pwd_create(bloc_name)
     msg2 = await ch.send("The password is " + str(pwd))
     await msg2.pin()
-  
+
+
+"""
+Allows a Delegate to join a particular private bloc using a unique password.
+"""
 @bot.command(name="join-bloc")
 async def join_bloc(ctx, bloc_name, pwd):
     member = ctx.message.author
 
-    if bloc_name not in chair.blocs:
+    if bloc_name not in utils.blocs:
         await ctx.send("This bloc doesn't exist yet.")
         return
 
-    if chair.blocs[bloc_name] == int(pwd):
+    if utils.blocs[bloc_name] == int(pwd):
         overwrite = discord.PermissionOverwrite()
         overwrite.send_messages = True
         overwrite.read_messages = True
@@ -204,19 +206,22 @@ async def join_bloc(ctx, bloc_name, pwd):
         await ctx.send("The password is incorrect.")
 
 
+"""
+Mute all participants with Delegate role in a voice channel (one which the command author is part of).
+"""
 @commands.has_role("Chair")
 @bot.command(name='mute')
-async def vcmute(ctx):
+async def vc_mute(ctx):
     vc = ctx.author.voice.channel
     role = discord.utils.get(ctx.message.guild.roles, name='Chair')
 
     for member in vc.members:
       if role not in member.roles:
         await member.edit(mute=True)
-        
+
 @commands.has_role("Chair")
 @bot.command(name='unmute')
-async def vcunmute(ctx):
+async def vc_unmute(ctx):
     vc = ctx.author.voice.channel
     role = discord.utils.get(ctx.message.guild.roles, name='Chair')
 
@@ -225,6 +230,9 @@ async def vcunmute(ctx):
         await member.edit(mute=False)
 
 
+"""
+Called when a message has a reaction added to it. Used to update raise hand and poll-stance methods.
+"""
 @bot.event
 async def on_reaction_add(reaction, user):
     cc = db["voting_msg_id"]
@@ -258,6 +266,9 @@ async def on_reaction_add(reaction, user):
         
     return
 
+"""
+Called when a message has a reaction removed from it. Used to update raise hand and poll-stance methods.
+"""
 @bot.event
 async def on_reaction_remove(reaction, user):
     cc = db["voting_msg_id"]
@@ -287,6 +298,10 @@ async def on_reaction_remove(reaction, user):
 
     return
 
+
+"""
+Creates a message with hand emoji that allows Delegates to react and alert the chairs.
+"""
 @commands.has_role("Chair")
 @bot.command(name='raise-hand')
 async def raise_hand(ctx):
@@ -297,6 +312,9 @@ async def raise_hand(ctx):
     db["hand_msg_id"] = msg.id
 
 
+"""
+Calls Discord API with aiohttp and modifies the returned json using datetime.
+"""
 async def timeout_user(*, user_id: int, guild_id: int, until):
     headers = {"Authorization": f"Bot {bot.http.token}"}
 
@@ -311,6 +329,9 @@ async def timeout_user(*, user_id: int, guild_id: int, until):
            return True
         return False
 
+"""
+Uses Discord’s Time Out feature to prevent a Delegate from participating in the MUN for a specified time period. Calls timeout_user to access Discord API.
+"""
 @commands.has_role("Chair")
 @bot.command(name='gag')
 async def gag(ctx: commands.Context, member: discord.Member, until: int):
@@ -322,9 +343,13 @@ async def gag(ctx: commands.Context, member: discord.Member, until: int):
          return await ctx.send(f"Successfully timed out user for {until} minutes.")
     await ctx.send("Gag a delegate and not your colleagues.")
 
+
+"""
+Creates a message with two emojis that allow Delegates to choose between present or voting stance.
+"""
 @commands.has_role("Chair")	
 @bot.command(name='voting-stance')
-async def voting_stance(ctx):	
+async def voting_stance_start(ctx):	
 	c = discord.utils.get(ctx.message.guild.channels, name='announcements')
 	msg = await c.send("Voting Stance\n```Delegates:```")
 
@@ -336,9 +361,10 @@ async def voting_stance(ctx):
 	db["voting_msg_id"]	= msg.id
 	print(db["voting_msg_id"])
 
+
 @commands.has_role("Chair")
 @bot.command(name='voting-end')
-async def voting_end(ctx):	
+async def voting_stance_end(ctx):	
 
 	c = discord.utils.get(ctx.message.guild.channels, name='announcements')
 	id = db["voting_msg_id"]
@@ -347,6 +373,9 @@ async def voting_end(ctx):
 	for r in msg.reactions: await msg.clear_reaction(r)
 
 
+"""
+Creates a message with two emoji that allows Delegates to react and choose between supporting and opposing a motion. Calls poll_create.
+"""
 @commands.has_role("Chair")
 @bot.command(name='poll')
 async def poll_start(ctx, *, text):	
@@ -358,7 +387,7 @@ async def poll_start(ctx, *, text):
 		await message.add_reaction(emoji)
 	
 	guild_id = ctx.message.guild.id
-	chair.poll_create(message.id, text, guild_id)
+	utils.poll_create(message.id, text, guild_id)
 
 
 @commands.has_role("Chair")
@@ -371,7 +400,7 @@ async def poll_stop(ctx):
 		id = db[str(guild_id)]
 		msg = await c.fetch_message(int(id))
 
-		y, n = chair.poll_result(guild_id, {react.emoji: react.count for react in msg.reactions})
+		y, n = utils.poll_result(guild_id, {react.emoji: react.count for react in msg.reactions})
 
 		voters = ""
 		for r in msg.reactions:
@@ -380,23 +409,49 @@ async def poll_stop(ctx):
 					dn = ctx.guild.get_member(user.id)
 					if dn.name != bot.user.name:
 						voters += str(dn.display_name)+" - "+str(r.emoji)+"\n"
-			
-		# for r in msg.reactions: await msg.clear_reaction(r)
-		
+					
 		await msg.edit(content=f"{msg.content}\n------------\n> **Results:** Yes: *{y}*  No: *{n}*")
 
 		res = discord.utils.get(ctx.message.guild.channels, name='poll-log')
 
-		await res.send(content=f"{msg.content}\n```{voters}```")
+		await res.send(content=f"{msg.content}\n```{voters}```") #logs result in poll-log channel
 
-		await msg.delete()
+		await msg.delete() #removes message from announcements
 
 	except KeyError:
-		await ctx.send("Error: Backend has messed up")
+		await ctx.send("Error: Backend has been corrupted.")
 
 
+"""
+Reverse Delegate and Chair roles of members. Can be used in case Chairs are given Delegate roles due to on_member_join.
+(or delegates can use this to mess with their chairs XD)
+"""
+@bot.command(name="reverse-roles")
+async def reverse_roles(ctx):
+    await ctx.send("Easter Egg UNLOCKED!\n🎉🎉🎉")
+    msg = ctx.message
+    await msg.delete()
+
+    r1 = discord.utils.get(ctx.message.guild.roles, name='Chair')
+    r2 = discord.utils.get(ctx.message.guild.roles, name='Delegate')
+
+    members = ctx.guild.members
+    for person in members:
+        if person == bot.user:
+            continue
+        if r1 not in person.roles:
+            await person.remove_roles(r2)
+            await person.add_roles(r1)
+        else:
+            await person.remove_roles(r1)
+            await person.add_roles(r2)
+
+
+"""
+Displays a message with available commands on the server.
 @commands.has_role("Chair")
-@bot.command(pass_content=True)
+"""
+@bot.command(name="help", pass_content=True)
 async def help(ctx):
 
     embedVar = discord.Embed(title="MUN Help",
