@@ -1,4 +1,5 @@
 # MUN Conferencing Discord Assistant
+<img src='https://github.com/AnantharamanSI/MUN-Discord-Bot/assets/54242457/e2c49ecd-3f5e-412a-8df2-0eac11bd1440' width='120'>
 
 This is a Discord bot to make conducting MUNs on discord a breeze.
 
